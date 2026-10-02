@@ -6,3 +6,5 @@ data/*
 outputs/*
 !outputs/.gitkeep
 .ipynb_checkpoints/
+.DS_Store
+.claude/
