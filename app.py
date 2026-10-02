@@ -61,10 +61,11 @@ def match_bundle(match_id: int) -> dict:
     return {"events": events, **_bundle(events)}
 
 
-@st.cache_data(show_spinner=False)
-def season_bundle(competition_id: int, season_id: int, _progress=None) -> dict:
+def season_bundle(competition_id: int, season_id: int, progress=None) -> dict:
+    """Sem @st.cache: o progresso é um elemento da página, que não pode ser reexecutado
+    a partir do cache. O resultado fica em st.session_state (ver season_view)."""
     events, matches, failed = pipeline.load_season_events(
-        competition_id, season_id, progress=_progress)
+        competition_id, season_id, progress=progress)
     return {"failed": failed, "n_matches": events["match_id"].nunique(), **_bundle(events)}
 
 
@@ -122,13 +123,16 @@ def match_view(match_row: pd.Series):
 # ---------- visão: temporada inteira ----------
 def season_view(competition: str, season: str, cid: int, sid: int, n_total: int):
     st.subheader(f"{competition} {season} — campeonato inteiro")
-    bar = st.progress(0.0, text="Baixando partidas…")
+    key = ("season", cid, sid)
+    if key not in st.session_state:
+        bar = st.progress(0.0, text="Baixando partidas…")
 
-    def progress(i, n, text):
-        bar.progress(i / n, text=f"[{i}/{n}] {text}")
+        def progress(i, n, text):
+            bar.progress(i / n, text=f"[{i}/{n}] {text}")
 
-    b = season_bundle(cid, sid, _progress=progress)
-    bar.empty()
+        st.session_state[key] = season_bundle(cid, sid, progress)
+        bar.empty()
+    b = st.session_state[key]
     st.caption(f"{b['n_matches']} jogos analisados"
                + (f" · {len(b['failed'])} sem eventos abertos" if b["failed"] else ""))
 
