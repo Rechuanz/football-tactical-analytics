@@ -1,17 +1,22 @@
 -- Resumo por jogador sobre vários jogos. Usa os resultados das outras queries,
 -- registrados como views: progressive_passes_view, progressive_carries_view,
--- shot_participation_view. Normalização por jogo disputado (aparições, não minutos).
-WITH appearances AS (
+-- shot_participation_view. Normalização por 90 minutos (minutos vêm das escalações).
+WITH per_match AS (
+    SELECT team, player, match_id, any_value(player_label) AS player_label,
+           any_value(minutes_played) AS minutes
+    FROM events WHERE player IS NOT NULL GROUP BY team, player, match_id
+),
+appearances AS (
     SELECT team, player, any_value(player_label) AS player_label,
-           count(DISTINCT match_id) AS matches
-    FROM events WHERE player IS NOT NULL GROUP BY ALL
+           count(*) AS matches, round(sum(minutes), 0) AS minutes
+    FROM per_match GROUP BY team, player
 ),
 pp AS (SELECT team, player, count(*) AS progressive_passes
        FROM progressive_passes_view GROUP BY ALL),
 pc AS (SELECT team, player, count(*) AS progressive_carries
        FROM progressive_carries_view GROUP BY ALL)
 SELECT
-    a.team, a.player, a.player_label, a.matches,
+    a.team, a.player, a.player_label, a.matches, a.minutes,
     coalesce(pp.progressive_passes, 0)  AS progressive_passes,
     coalesce(pc.progressive_carries, 0) AS progressive_carries,
     coalesce(sp.shots, 0) AS shots, coalesce(sp.goals, 0) AS goals,
@@ -19,9 +24,9 @@ SELECT
     coalesce(sp.assists, 0) AS assists, coalesce(sp.xa, 0) AS xa,
     coalesce(sp.xg_plus_xa, 0) AS xg_plus_xa,
     coalesce(sp.npxg_plus_xa, 0) AS npxg_plus_xa,
-    round(coalesce(sp.npxg_plus_xa, 0) / a.matches, 2) AS npxg_xa_per_match,
+    round(coalesce(sp.npxg_plus_xa, 0) * 90 / nullif(a.minutes, 0), 2) AS npxg_xa_per90,
     round((coalesce(pp.progressive_passes, 0) + coalesce(pc.progressive_carries, 0))
-          / a.matches, 1) AS progressions_per_match
+          * 90 / nullif(a.minutes, 0), 1) AS progressions_per90
 FROM appearances a
 LEFT JOIN pp USING (team, player)
 LEFT JOIN pc USING (team, player)

@@ -49,3 +49,7 @@ def tournament_summary(con) -> pd.DataFrame:
 def team_summary(con) -> pd.DataFrame:
     """Resumo por time. Requer as views progressive_*_view registradas (ver pipeline)."""
     return run_sql_file(con, "team_summary")
+
+
+def shots(con) -> pd.DataFrame:
+    return run_sql_file(con, "shots")

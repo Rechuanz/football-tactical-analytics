@@ -36,6 +36,7 @@ def analysis_tables(con) -> dict:
         "progressive_carries": queries.progressive_carries(con),
         "key_passes": queries.key_passes(con),
         "shot_participation": queries.shot_participation(con),
+        "shots": queries.shots(con),
     }
     for name in ("progressive_passes", "progressive_carries", "shot_participation"):
         con.register(f"{name}_view", tables[name])
@@ -51,6 +52,7 @@ def plot_match_maps(con, events, tables, title, out_dir):
         viz.plot_progressive_carries(tables["progressive_carries"], team, title,
                                      out_dir / f"progressive_carries_{team}.png")
         viz.plot_key_passes(tables["key_passes"], team, title, out_dir / f"key_passes_{team}.png")
+        viz.plot_shot_map(tables["shots"], team, title, out_dir / f"shot_map_{team}.png")
         viz.plot_pass_network(nodes, edges, team, title, out_dir / f"pass_network_{team}.png")
 
 

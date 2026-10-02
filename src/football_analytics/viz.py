@@ -99,3 +99,25 @@ def plot_tournament_leaders(summary: pd.DataFrame, title: str, path=None, top: i
     if path:
         fig.savefig(path, dpi=200, bbox_inches="tight", facecolor=fig.get_facecolor())
     return fig
+
+
+def plot_shot_map(df: pd.DataFrame, team: str, title: str, path=None):
+    d = df[df["team"] == team]
+    pitch = Pitch(pitch_type="statsbomb", half=True, pitch_color="#1b1f2a", line_color="#c7d5cc")
+    fig, ax = pitch.draw(figsize=(12, 8))
+    fig.set_facecolor("#1b1f2a")
+    for is_goal, color, label in [(False, "#4cc9f0", "chute"), (True, "#f94144", "gol")]:
+        g = d[d["is_goal"] == is_goal]
+        pitch.scatter(g.x, g.y, s=g.xg * 1500 + 40, color=color, edgecolors="white", alpha=0.85,
+                      marker="o", zorder=3, ax=ax, label=f"{label} ({len(g)})")
+    pens = d[d["is_penalty"]]
+    if len(pens):
+        pitch.scatter(pens.x, pens.y, s=pens.xg * 1500 + 40, facecolors="none", edgecolors="#f9c74f",
+                      linewidths=2.5, zorder=4, ax=ax, label=f"pênalti ({len(pens)})")
+    xg = d["xg"].sum()
+    ax.legend(loc="lower left", facecolor="#1b1f2a", labelcolor="white", edgecolor="none")
+    ax.set_title(f"{team} — chutes ({len(d)}; xG {xg:.2f}; tamanho = xG)\n{title}",
+                 color="white", fontsize=15, pad=12)
+    if path:
+        fig.savefig(path, dpi=200, bbox_inches="tight", facecolor=fig.get_facecolor())
+    return fig
