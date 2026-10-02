@@ -1,11 +1,12 @@
 """Etapa 2: limpeza e carga dos eventos em DuckDB (em memória)."""
 import duckdb
+import numpy as np
 import pandas as pd
 
 
 def _split_xy(df: pd.DataFrame, col: str, prefix: str) -> pd.DataFrame:
     """Converte colunas [x, y] (listas) em duas colunas numéricas."""
-    coords = df[col].apply(lambda v: v if isinstance(v, (list, tuple)) else [None, None])
+    coords = df[col].apply(lambda v: v if isinstance(v, (list, tuple, np.ndarray)) else [None, None])
     df[f"{prefix}_x"] = coords.str[0].astype("float64")
     df[f"{prefix}_y"] = coords.str[1].astype("float64")
     return df.drop(columns=[col])
