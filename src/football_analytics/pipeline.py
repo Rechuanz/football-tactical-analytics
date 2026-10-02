@@ -17,6 +17,18 @@ def match_title(events: pd.DataFrame, matches: pd.DataFrame = None, match_id=Non
     return " x ".join(_teams(events))
 
 
+def coverage(matches: pd.DataFrame) -> dict:
+    """Cobertura do Open Data numa temporada: algumas só liberam jogos de um time.
+
+    `focal_team` é o time presente em mais de 60% dos jogos (None em torneios normais).
+    """
+    teams = pd.concat([matches["home_team"], matches["away_team"]]).value_counts()
+    n = len(matches)
+    focal = teams.index[0] if n and teams.iloc[0] / n > 0.6 else None
+    return {"n_matches": n, "n_teams": len(teams), "max_games": int(teams.iloc[0]) if n else 0,
+            "focal_team": focal, "focal_games": int(teams.iloc[0]) if focal else 0}
+
+
 def analysis_tables(con) -> dict:
     """Roda as queries analíticas e registra os resultados como views."""
     tables = {

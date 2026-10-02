@@ -121,7 +121,7 @@ def match_view(match_row: pd.Series):
 
 
 # ---------- visão: temporada inteira ----------
-def season_view(competition: str, season: str, cid: int, sid: int, n_total: int):
+def season_view(competition: str, season: str, cid: int, sid: int, cov: dict):
     st.subheader(f"{competition} {season} — campeonato inteiro")
     key = ("season", cid, sid)
     if key not in st.session_state:
@@ -136,13 +136,22 @@ def season_view(competition: str, season: str, cid: int, sid: int, n_total: int)
     st.caption(f"{b['n_matches']} jogos analisados"
                + (f" · {len(b['failed'])} sem eventos abertos" if b["failed"] else ""))
 
+    if cov["focal_team"]:
+        st.warning(
+            f"Só os jogos do **{cov['focal_team']}** estão disponíveis ({cov['focal_games']} jogos). "
+            "Jogadores e totais dos demais times cobrem apenas os jogos contra ele, "
+            "então não são comparáveis. O filtro de mínimo de jogos já vem ajustado "
+            "para mostrar só o elenco com cobertura completa.")
+
     tabs = st.tabs(["Jogadores", "Times"])
     with tabs[0]:
         players = b["players"]
         c1, c2, c3 = st.columns([2, 1, 1])
         teams = c1.multiselect("Times", sorted(players["team"].unique()))
         max_m = int(players["matches"].max())
-        min_m = c2.slider("Mínimo de jogos", 1, max_m, min(3, max_m))
+        default_min = max(3, cov["focal_games"] // 2) if cov["focal_team"] else 3
+        min_m = c2.slider("Mínimo de jogos", 1, max_m, min(default_min, max_m),
+                          key=f"min_{cid}_{sid}")
         metrics = {v: k for k, v in PLAYER_COLS.items()
                    if k not in ("player_label", "team", "matches")}
         sort_label = c3.selectbox("Ordenar por", list(metrics), index=list(metrics).index("np-xG+xA"))
@@ -155,6 +164,9 @@ def season_view(competition: str, season: str, cid: int, sid: int, n_total: int)
         table(df, PLAYER_COLS)
         st.download_button("Baixar CSV", df.to_csv(index=False), "jogadores.csv", "text/csv")
     with tabs[1]:
+        if cov["focal_team"]:
+            st.caption(f"Apenas o {cov['focal_team']} tem a temporada completa; os demais times "
+                       "têm só os jogos contra ele.")
         table(b["teams"], TEAM_COLS)
 
 
@@ -173,6 +185,12 @@ with st.sidebar:
     cid, sid = int(srow.competition_id), int(srow.season_id)
 
     matches = get_matches(cid, sid)
+    cov = pipeline.coverage(matches)
+    if cov["focal_team"]:
+        st.warning(
+            f"**Cobertura parcial:** nesta temporada o StatsBomb só liberou os jogos do "
+            f"**{cov['focal_team']}** ({cov['focal_games']} de {cov['n_matches']} jogos). "
+            f"Os outros {cov['n_teams'] - 1} times aparecem apenas nos jogos contra ele.")
     scope = st.radio("Escopo", ["Partida", "Campeonato inteiro"])
     match_row = None
     if scope == "Partida":
@@ -188,6 +206,6 @@ if scope == "Partida":
     match_view(match_row)
 elif go_season or st.session_state.get("season_key") == (cid, sid):
     st.session_state["season_key"] = (cid, sid)
-    season_view(competition, season, cid, sid, len(matches))
+    season_view(competition, season, cid, sid, cov)
 else:
     st.write("Clique em **Analisar campeonato** na barra lateral para carregar a temporada.")
