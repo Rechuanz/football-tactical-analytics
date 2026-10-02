@@ -3,3 +3,4 @@ duckdb>=1.0
 mplsoccer>=1.4
 pandas>=2.0
 matplotlib>=3.8
+streamlit>=1.40
