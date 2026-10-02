@@ -10,6 +10,7 @@ para explorar qualquer partida ou campeonato inteiro.
 
 | Análise | Query SQL | Visualização |
 |---|---|---|
+| **Mapa de chutes** (posição, xG, gols, pênaltis) | [`shots.sql`](sql/shots.sql) | meio-campo de ataque, tamanho = xG |
 | **Passes progressivos** (critério estilo Wyscout) | [`progressive_passes.sql`](sql/progressive_passes.sql) | mapa de passes |
 | **Carries progressivos** (≥ 10 jardas em direção ao gol) | [`progressive_carries.sql`](sql/progressive_carries.sql) | mapa de conduções |
 | **Passes-chave** com xA (passe → chute via `shot_key_pass_id`) | [`key_passes.sql`](sql/key_passes.sql) | mapa de passes-chave (tamanho = xG) |
@@ -22,7 +23,10 @@ Uma query por arquivo `.sql`; as de resumo reaproveitam o resultado das outras, 
 
 <table>
   <tr>
+    <td><img src="docs/img/shot_map.png" alt="Mapa de chutes"></td>
     <td><img src="docs/img/progressive_passes.png" alt="Passes progressivos"></td>
+  </tr>
+  <tr>
     <td><img src="docs/img/progressive_carries.png" alt="Carries progressivos"></td>
   </tr>
   <tr>
@@ -49,8 +53,8 @@ streamlit run app.py
 Na barra lateral escolha **campeonato → temporada → partida** (ou **campeonato inteiro**).
 
 - **Partida:** placar, métricas por time (gols, xG, np-xG, chutes, precisão de passe, progressões),
-  tabela de jogadores e mapas de passes/carries progressivos, passes-chave e rede de passes.
-- **Campeonato inteiro:** ranking de jogadores (filtro por time, mínimo de jogos e métrica, exporta CSV)
+  tabela de jogadores (com minutos) e mapas de chutes, passes/carries progressivos, passes-chave e rede de passes.
+- **Campeonato inteiro:** ranking de jogadores (filtro por time, mínimo de jogos e de minutos, métrica por total ou por 90, exporta CSV)
   e tabela agregada por time.
 
 ### Linha de comando
@@ -75,15 +79,30 @@ Campo StatsBomb 120 × 80, gol atacado em (120, 40).
   destino no próprio campo), ≥ 15% (cruza o meio-campo) ou ≥ 10% (no campo adversário).
 - **Carry progressivo:** condução que reduz a distância ao gol em ≥ 10 jardas e termina fora dos 40%
   defensivos do campo.
+- **Minutos jogados:** calculados a partir das escalações (entradas/saídas), incluindo acréscimos e
+  prorrogação. As métricas "/ 90" usam esses minutos.
 - **xA:** xG do chute gerado pelo passe. **np-xG:** xG sem pênaltis.
 - Disputas de pênaltis (período 5) ficam fora das contagens de chutes e gols.
 - Rótulos dos jogadores vêm do `player_nickname` das escalações (exceções em `SHORT_NAMES`).
+
+## Publicar online (Streamlit Community Cloud)
+
+1. Suba o repositório no GitHub (público ou privado).
+2. Em [share.streamlit.io](https://share.streamlit.io), entre com o GitHub e clique em **Create app**.
+3. Escolha o repositório, a branch `main` e o arquivo principal `app.py`.
+4. Em **Advanced settings**, selecione Python 3.12 e confirme em **Deploy**.
+
+As dependências vêm de `requirements.txt` e o tema de `.streamlit/config.toml`. O primeiro carregamento de
+cada partida/campeonato baixa os dados da API (um campeonato inteiro leva ~1 min); o disco do servidor é
+temporário, então o cache em `data/` se refaz após cada reinício. Depois de publicado, coloque o link no topo
+deste README.
 
 ## Estrutura
 
 ```
 ├── app.py                     # front end Streamlit
 ├── main.py                    # CLI
+├── .streamlit/config.toml     # tema do app
 ├── sql/                       # uma query analítica por arquivo
 ├── src/football_analytics/
 │   ├── config.py              # IDs padrão, dimensões do campo, apelidos
@@ -99,7 +118,8 @@ Campo StatsBomb 120 × 80, gol atacado em (120, 40).
 
 ## Limitações
 
-- "Por jogo" conta aparições, não minutos jogados.
+- Os minutos vêm das escalações; se faltarem em jogos antigos, o app esconde o filtro de minutos.
+- Algumas temporadas só têm os jogos de um time (ex.: Bundesliga = Bayer Leverkusen); o app avisa.
 - Só há eventos para as competições do Open Data (a Champions, por exemplo, vai até 2018/19).
 - A rede de passes é por partida; posições médias não fazem sentido somadas entre jogos.
 

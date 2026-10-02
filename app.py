@@ -16,11 +16,11 @@ from football_analytics import extract, pipeline, queries, transform, viz
 st.set_page_config(page_title="Football Tactical Analytics", page_icon="⚽", layout="wide")
 
 PLAYER_COLS = {
-    "player_label": "Jogador", "team": "Time", "matches": "Jogos", "shots": "Chutes",
+    "player_label": "Jogador", "team": "Time", "matches": "Jogos", "minutes": "Minutos", "shots": "Chutes",
     "goals": "Gols", "xg": "xG", "npxg": "np-xG", "key_passes": "Passes-chave",
     "assists": "Assist.", "xa": "xA", "npxg_plus_xa": "np-xG+xA",
-    "npxg_xa_per_match": "np-xG+xA / jogo", "progressive_passes": "Passes prog.",
-    "progressive_carries": "Carries prog.", "progressions_per_match": "Progressões / jogo",
+    "npxg_xa_per90": "np-xG+xA / 90", "progressive_passes": "Passes prog.",
+    "progressive_carries": "Carries prog.", "progressions_per90": "Progressões / 90",
 }
 TEAM_COLS = {
     "team": "Time", "matches": "Jogos", "goals": "Gols", "shots": "Chutes", "xg": "xG",
@@ -70,13 +70,13 @@ def season_bundle(competition_id: int, season_id: int, progress=None) -> dict:
 
 
 def show_fig(fig):
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
 
 def table(df: pd.DataFrame, columns: dict, **kwargs):
     cols = [c for c in columns if c in df.columns]
-    st.dataframe(df[cols].rename(columns=columns), hide_index=True, use_container_width=True, **kwargs)
+    st.dataframe(df[cols].rename(columns=columns), hide_index=True, width='stretch', **kwargs)
 
 
 # ---------- visão: partida ----------
@@ -100,20 +100,21 @@ def match_view(match_row: pd.Series):
             c.metric("Precisão de passe", f"{t.pass_pct}%")
             d.metric("Prog. (passes+carries)", t.progressive_passes + t.progressive_carries)
 
-    tabs = st.tabs(["Jogadores", "Passes progressivos", "Carries progressivos",
+    tabs = st.tabs(["Jogadores", "Chutes", "Passes progressivos", "Carries progressivos",
                     "Passes-chave", "Rede de passes"])
     with tabs[0]:
         table(b["players"], PLAYER_COLS)
     maps = [
-        (tabs[1], viz.plot_progressive_passes, b["tables"]["progressive_passes"]),
-        (tabs[2], viz.plot_progressive_carries, b["tables"]["progressive_carries"]),
-        (tabs[3], viz.plot_key_passes, b["tables"]["key_passes"]),
+        (tabs[1], viz.plot_shot_map, b["tables"]["shots"]),
+        (tabs[2], viz.plot_progressive_passes, b["tables"]["progressive_passes"]),
+        (tabs[3], viz.plot_progressive_carries, b["tables"]["progressive_carries"]),
+        (tabs[4], viz.plot_key_passes, b["tables"]["key_passes"]),
     ]
     for tab, plot, df in maps:
         with tab:
             team = st.radio("Time", teams, horizontal=True, key=f"{plot.__name__}")
             show_fig(plot(df, team, title))
-    with tabs[4]:
+    with tabs[5]:
         team = st.radio("Time", teams, horizontal=True, key="network_team")
         show_fig(viz.plot_pass_network(b["nodes"], b["edges"], team, title))
         st.caption("Posição média dos passes de cada jogador até a primeira substituição do time; "
@@ -140,22 +141,32 @@ def season_view(competition: str, season: str, cid: int, sid: int, cov: dict):
         st.warning(
             f"Só os jogos do **{cov['focal_team']}** estão disponíveis ({cov['focal_games']} jogos). "
             "Jogadores e totais dos demais times cobrem apenas os jogos contra ele, "
-            "então não são comparáveis. O filtro de mínimo de jogos já vem ajustado "
+            "então não são comparáveis. Os filtros de mínimo de jogos e minutos já vêm ajustados "
             "para mostrar só o elenco com cobertura completa.")
 
     tabs = st.tabs(["Jogadores", "Times"])
     with tabs[0]:
         players = b["players"]
-        c1, c2, c3 = st.columns([2, 1, 1])
+        c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
         teams = c1.multiselect("Times", sorted(players["team"].unique()))
         max_m = int(players["matches"].max())
-        default_min = max(3, cov["focal_games"] // 2) if cov["focal_team"] else 3
+        has_minutes = bool(players["minutes"].notna().any())  # escalações ausentes em jogos antigos
+        max_min = int(players["minutes"].max()) if has_minutes else 0
+        focal = cov["focal_team"] is not None
+        default_min = max(3, cov["focal_games"] // 2) if focal else 3
         min_m = c2.slider("Mínimo de jogos", 1, max_m, min(default_min, max_m),
                           key=f"min_{cid}_{sid}")
+        default_minutes = (max_min // 2 // 30) * 30 if focal else 180
+        min_minutes = 0
+        if has_minutes:
+            min_minutes = c3.slider("Mínimo de minutos", 0, max_min, min(default_minutes, max_min),
+                                    step=30, key=f"minutes_{cid}_{sid}")
+        else:
+            c3.caption("Minutos indisponíveis nesta temporada.")
         metrics = {v: k for k, v in PLAYER_COLS.items()
-                   if k not in ("player_label", "team", "matches")}
-        sort_label = c3.selectbox("Ordenar por", list(metrics), index=list(metrics).index("np-xG+xA"))
-        df = players[players["matches"] >= min_m]
+                   if k not in ("player_label", "team", "matches", "minutes")}
+        sort_label = c4.selectbox("Ordenar por", list(metrics), index=list(metrics).index("np-xG+xA"))
+        df = players[(players["matches"] >= min_m) & (players["minutes"].fillna(0) >= min_minutes)]
         if teams:
             df = df[df["team"].isin(teams)]
         df = df.sort_values(metrics[sort_label], ascending=False)
